@@ -27,6 +27,7 @@ zxing.init
   ossSecret : "XXXXXXXXXX"
   ossBucket : "your-bucket"
   ossPath : "path-in-your-bucket"
+  httpPrefix : "一共公网可以访问的指向OSS素材源的url地址"
 ```
 
 ### 识别图片
