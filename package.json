@@ -2,9 +2,9 @@
   "name": "node-zxing-oss-enhanced",
   "version": "1.0.0",
   "description": "ZXing qrcode image reader with aliyun oss color tuning enhanced",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "coffee": "coffee -o ./lib/ -cbw ./src/"
   },
   "repository": {
     "type": "git",
@@ -17,6 +17,11 @@
   },
   "homepage": "https://github.com/yi/node-zxing-oss-enhanced#readme",
   "devDependencies": {
+    "debug": "^2.2.0",
     "oss-easy": "^0.3.2"
+  },
+  "dependencies": {
+    "shelljs": "^0.7.4",
+    "underscore": "^1.8.3"
   }
 }
