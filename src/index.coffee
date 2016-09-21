@@ -8,6 +8,7 @@ assert = require "assert"
 
 IS_JAVA_INSTALLED = which('java')
 
+START_AT = Date.now().toString(36)
 
 ZXIN_PATH = path.join(__dirname, "..", "zxing")
 
@@ -49,7 +50,7 @@ init = (options)->
 
 Cnt = 0
 
-generateRandomFilename = (basename)-> return "#{Date.now().toString(36)}_#{++Cnt}#{basename || ''}"
+generateRandomFilename = (basename)-> return "#{Date.now().toString(36)}_#{START_AT}_#{++Cnt}#{basename || ''}"
 
 readResultFromStdout = (stdout)->
   lines = stdout.split("\n")
@@ -68,11 +69,14 @@ decode = (uri, callback)->
     callback 'java is not installed'
     return
 
-  uri = String(uri || '')
-  parsedUri = url.parse(uri)
-  unless (parsedUri.protocol is 'http:') or (parsedUri.protocol is 'https:')
-    callback "invalid uri:#{uri} / #{parsedUri.protocol}. please supply http or https uri"
+  uri = String(uri || '').trim()
+  unless uri
+    callback "invalid uri:#{uri}"
     return
+  #parsedUri = url.parse(uri)
+  #unless (parsedUri.protocol is 'http:') or (parsedUri.protocol is 'https:')
+    #callback "invalid uri:#{uri} / #{parsedUri.protocol}. please supply http or https uri"
+    #return
 
   cmd = "java -cp #{JAR_SET_PATH} #{JAR_ENTRY_POINT} #{uri}"
   debuglog "[decode] cmd to be exec:#{cmd}"
@@ -98,7 +102,7 @@ decode = (uri, callback)->
     filename = generateRandomFilename() + path.extname(uri)
     remoteFilePath = path.join(OSS_BUKET_PATH, filename)
 
-    OssClint.transport uri, remoteFilePath, (err)->
+    OssClint.uploadFile uri, remoteFilePath, (err)->
       return callback(err) if err?
 
       optimizedImgUrl =  HTTP_PREFIX + path.join(OSS_BUKET_PATH, "#{filename}#{ALI_IMG_CMD}")
