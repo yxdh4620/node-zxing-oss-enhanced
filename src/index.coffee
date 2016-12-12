@@ -2,7 +2,8 @@ require 'shelljs/global'
 _ = require 'underscore'
 debuglog = require("debug")("zxing-oss-enhanced")
 path = require 'path'
-ossEasy = require "oss-easy"
+#oss = require('ali-oss').oss
+oss = require('aliyun-oss')
 url = require 'url'
 assert = require "assert"
 
@@ -16,34 +17,34 @@ JAR_SET_PATH = "#{path.join(ZXIN_PATH, 'javase-3.3.0.jar')}:#{path.join(ZXIN_PAT
 
 JAR_ENTRY_POINT = "com.google.zxing.client.j2se.CommandLineRunner"
 
+
+
 #java -cp ./javase-3.3.0.jar:./jcommander-1.27.jar:core-3.3.0.jar com.google.zxing.client.j2se.CommandLineRunner http://asset-image.weixinzhongxin.com/temp_img_resize/2.pic_hd.jpg@300w_90q_100d.jpg
 
-OssClint = null
+OssClient = null
 
-OSS_BUKET_PATH = ''
+OSS_BUCKET = ""
 HTTP_PREFIX = ''
-
 ALI_IMG_CMD = "@500w_800h_100d.png"
 
 init = (options)->
-
   assert options, "missing options"
   assert options.ossKey, "missing options.ossKey"
   assert options.ossSecret, "missing options.ossSecret"
   assert options.ossBucket , "missing options.ossBucket "
   assert options.ossPath, "missing options.ossPath"
   assert options.httpPrefix, "missing options.httpPrefix"
-
-
   ossOptions =
     accessKeyId : options.ossKey
     accessKeySecret : options.ossSecret
-    bucket : options.ossBucket
+    #bucket : options.ossBucket
+    #region: options.ossRegion || 'oss-cn-hangzhou'
+    host: options.ossRegion || 'oss-cn-hangzhou.aliyuncs.com'
+  OssClient = oss.createClient(ossOptions)
 
-  OssClint = new ossEasy(ossOptions)
-
-  OSS_BUKET_PATH = options.ossPath
+  OSS_BUCKET = options.ossBucket
   HTTP_PREFIX = options.httpPrefix
+  ALI_IMG_CMD = options.aliImgCmd
 
   debuglog 'init ok'
   return
@@ -59,72 +60,49 @@ readResultFromStdout = (stdout)->
       return lines[i + 1]
   return
 
-
-decode = (uri, callback)->
+decode = (stream, options = {}, callback) ->
   unless _.isFunction(callback)
     debuglog '[decode] callback isnt a function. cancel'
     return
-
   unless IS_JAVA_INSTALLED
     callback 'java is not installed'
     return
-
-  uri = String(uri || '').trim()
-  unless uri
+  unless stream? and Buffer.isBuffer(stream)
     callback "invalid uri:#{uri}"
     return
-  #parsedUri = url.parse(uri)
-  #unless (parsedUri.protocol is 'http:') or (parsedUri.protocol is 'https:')
-    #callback "invalid uri:#{uri} / #{parsedUri.protocol}. please supply http or https uri"
-    #return
+  #ref = OssClint.put 'filepath', stream
+  opt =
+    bucket: options.bucket || OSS_BUCKET
+    object: "#{options.object}"
+    source: stream
+  OssClient.putObject opt, (err, ref) ->
+    return callback(err) if err?
+    filepath = "#{filepath}#{ALI_IMG_CMD}"
+    uri = "#{HTTP_PREFIX}#{options.object}"
+    cmd = "java -cp #{JAR_SET_PATH} #{JAR_ENTRY_POINT} #{uri} --try_harder"
+    debuglog "[decode] cmd to be exec:#{cmd}"
+    exec cmd, {silent:true}, (code, stdout, stderr)->
+      debuglog "[parse result] attemp 2 code:#{code}, stdout:#{stdout}, stderr:#{stderr}"
+      if code
+        errorCache = "ERROR: code:#{code}, err:#{stderr}"
+      else
+        qrcode = readResultFromStdout stdout
+      callback errorCache, qrcode
 
-  cmd = "java -cp #{JAR_SET_PATH} #{JAR_ENTRY_POINT} #{uri}"
-  debuglog "[decode] cmd to be exec:#{cmd}"
-
-  exec cmd, {silent:true}, (code, stdout, stderr)->
-    debuglog "[parse result] code:#{code}, stdout:#{stdout}, stderr:#{stderr}"
-    if code
-      errorCache = "ERROR: code:#{code}, err:#{stderr}"
-    else
-      qrcode = readResultFromStdout stdout
-
-    #errorCache = "No barcode found. stdout:#{stdout}" unless qrcode
-    #callback errorCache, qrcode
-    return callback(errorCache) if errorCache?  # something wrong
-    return callback(null, qrcode) if qrcode?  # found qrcode
-
-    unless OssClint?
-      # OSS 客户端没有初始化，所以无法进行下一步尝试
-      debuglog "no oss client inited. cancel attemps"
-      return callback()
-
-    debuglog "TRY OSS IMG OPTMIZATION"
-    filename = generateRandomFilename() + path.extname(uri)
-    remoteFilePath = path.join(OSS_BUKET_PATH, filename)
-
-    OssClint.uploadFile uri, remoteFilePath, (err)->
-      return callback(err) if err?
-
-      optimizedImgUrl =  HTTP_PREFIX + path.join(OSS_BUKET_PATH, "#{filename}#{ALI_IMG_CMD}")
-      cmd = "java -cp #{JAR_SET_PATH} #{JAR_ENTRY_POINT} #{optimizedImgUrl} --try_harder"
-      debuglog "[decode] attemp 2 cmd to be exec:#{cmd}"
-
-      exec cmd, {silent:true}, (code, stdout, stderr)->
-        debuglog "[parse result] attemp 2 code:#{code}, stdout:#{stdout}, stderr:#{stderr}"
-        if code
-          errorCache = "ERROR: code:#{code}, err:#{stderr}"
-        else
-          qrcode = readResultFromStdout stdout
-
-        callback errorCache, qrcode
-    return
-  return
+copy = (options={}, callback) ->
+  opt =
+    sourceBucket: options.sourceBucket || OSS_BUCKET
+    sourceObject: options.sourceObject
+    bucket: options.bucket||OSS_BUCKET
+    object: options.object
+  OssClient.copyObject opt, (err, res) ->
+    callback err, res
 
 
 module.exports =
   init : init
   decode : decode
-
+  copy: copy
 
 
 
