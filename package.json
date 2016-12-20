@@ -1,6 +1,6 @@
 {
   "name": "node-zxing-oss",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "ZXing qrcode image reader with aliyun oss color tuning enhanced",
   "main": "lib/index.js",
   "scripts": {

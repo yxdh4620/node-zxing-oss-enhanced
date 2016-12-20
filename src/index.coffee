@@ -70,24 +70,30 @@ decode = (stream, options = {}, callback) ->
   unless stream? and Buffer.isBuffer(stream)
     callback "invalid uri:#{uri}"
     return
-  #ref = OssClint.put 'filepath', stream
   opt =
     bucket: options.bucket || OSS_BUCKET
     object: "#{options.object}"
     source: stream
   OssClient.putObject opt, (err, ref) ->
     return callback(err) if err?
-    filepath = "#{filepath}#{ALI_IMG_CMD}"
-    uri = "#{HTTP_PREFIX}#{options.object}"
-    cmd = "java -cp #{JAR_SET_PATH} #{JAR_ENTRY_POINT} #{uri} --try_harder"
-    debuglog "[decode] cmd to be exec:#{cmd}"
-    exec cmd, {silent:true}, (code, stdout, stderr)->
-      debuglog "[parse result] attemp 2 code:#{code}, stdout:#{stdout}, stderr:#{stderr}"
-      if code
-        errorCache = "ERROR: code:#{code}, err:#{stderr}"
-      else
-        qrcode = readResultFromStdout stdout
-      callback errorCache, qrcode
+    setTimeout ()->
+      _decode options, (err, qrcode) ->
+        return callback err, qrcode
+    , 1000
+
+_decode = (options, callback) ->
+  uri = "#{HTTP_PREFIX}#{options.object}#{ALI_IMG_CMD}"
+  cmd = "java -cp #{JAR_SET_PATH} #{JAR_ENTRY_POINT} #{uri} --try_harder"
+  debuglog "[decode] cmd to be exec:#{cmd}"
+  exec cmd, {silent:true}, (code, stdout, stderr)->
+    debuglog "[parse result] attemp 2 code:#{code}, stdout:#{stdout}, stderr:#{stderr}"
+    if code
+      errorCache = "ERROR: code:#{code}, err:#{stderr}"
+    else
+      qrcode = readResultFromStdout stdout
+    callback errorCache, qrcode
+    return
+  return
 
 copy = (options={}, callback) ->
   opt =
